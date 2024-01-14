@@ -1,8 +1,7 @@
 # Compiled files
 /target/
 
-# Remove Cargo.lock from gitignore if creating an executable, keep it for libraries
-/Cargo.lock
+Cargo.lock
 
 # Crate artifacts
 **/*.crate
