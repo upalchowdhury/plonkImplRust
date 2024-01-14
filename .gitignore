@@ -1,0 +1,26 @@
+# Compiled files
+/target/
+
+# Remove Cargo.lock from gitignore if creating an executable, keep it for libraries
+# Cargo.lock
+
+# Crate artifacts
+**/*.crate
+
+# Local Cargo configuration
+/.cargo/
+
+# Build scripts output
+**/out
+
+# Backup files
+*.rs.bk
+
+# IDE/Editor specific files
+**/*.swp
+**/*.swo
+.vscode/
+
+
+# Environment variables
+.env
