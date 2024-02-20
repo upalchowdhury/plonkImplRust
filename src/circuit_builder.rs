@@ -39,9 +39,9 @@ where
     __: PhantomData<P>,
 }
 
-
-/// The final constraint added will force the following:
-    /// `(a * b) * q_m + a * q_l + b * q_r + q_c + PI + q_o * c = 0`.
+impl CircuitBuilder {
+     /*  The final constraint added will force the following:
+    `(a * b) * q_m + a * q_l + b * q_r + q_c + PI + q_o * c = 0`.*/
     pub fn poly_gate(
         &mut self,
         a: Variable,
@@ -86,3 +86,75 @@ where
 
         (a, b, c)
     }
+
+    // Constrain a Variable to be a constant
+    pub fn constrain_to_constant(
+        &mut self,
+        a: Variable,
+        constant: F,
+        pi: Option<F>,
+    ) {
+        self.poly_gate(
+            a,
+            a,
+            a,
+            F::zero(),
+            F::one(),
+            F::zero(),
+            F::zero(),
+            -constant,
+            pi,
+        );
+    }
+
+        // assert two variable to be equal
+        pub fn assert_equal(&mut self, a: Variable, b: Variable) {
+        self.poly_gate(
+            a,
+            b,
+            self.zero_var,
+            F::zero(),
+            F::one(),
+            -F::one(),
+            F::zero(),
+            F::zero(),
+            None,
+        );
+    }
+
+
+    pub fn add_input(&mut self, s: F) -> Variable {
+        // Get a new Variable from the permutation
+        let var = self.perm.new_variable();
+        // The composer now links the Variable returned from
+        // the Permutation to the value F.
+        self.variables.insert(var, s);
+
+        var
+    }
+
+
+     //Insert data in the PI starting at the given position and stores the occupied positions as intended for public inputs.
+    pub(crate) fn add_pi<T>(
+        &mut self,
+        pos: usize,
+        item: &T,
+    ) -> Result<(), Error>
+    where
+        T: ToConstraintField<F>,
+    {
+        let n_positions = self.public_inputs.add_input(pos, item)?;
+        self.intended_pi_pos.extend(pos..(pos + n_positions));
+        Ok(())
+    }
+}
+
+
+}
+
+
+
+
+
+
+
