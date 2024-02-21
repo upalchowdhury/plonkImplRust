@@ -284,6 +284,151 @@ where
     }
 
 
+    // This function adds two dummy gates to the circuit description which are guaranteed to always satisfy the gate equation.
+
+    pub fn add_dummy_constraints(&mut self) {
+        let var_six = self.add_input(F::from(6u64));
+        let var_one = self.add_input(F::one());
+        let var_seven = self.add_input(F::from(7u64));
+        let var_min_twenty = self.add_input(-F::from(20u64));
+
+        self.q_m.push(F::from(1u64));
+        self.q_l.push(F::from(2u64));
+        self.q_r.push(F::from(3u64));
+        self.q_o.push(F::from(4u64));
+        self.q_c.push(F::from(4u64));
+
+
+        self.q_lookup.push(F::one());
+     
+        self.w_l.push(var_six);
+        self.w_r.push(var_seven);
+        self.w_o.push(var_min_twenty);
+
+        self.perm.add_variables_to_map(
+            var_six,
+            var_seven,
+            var_min_twenty,
+            var_one,
+            self.n,
+        );
+        self.n += 1;
+
+        self.q_m.push(F::one());
+        self.q_l.push(F::one());
+        self.q_r.push(F::one());
+        self.q_o.push(F::one());
+        self.q_c.push(F::from(127u64));
+        self.q_4.push(F::zero());
+
+        self.q_lookup.push(F::one());
+
+        self.w_l.push(var_min_twenty);
+        self.w_r.push(var_six);
+        self.w_o.push(var_seven);
+    
+        self.perm.add_variables_to_map(
+            var_min_twenty,
+            var_six,
+            var_seven,
+            self.zero_var,
+            self.n,
+        );
+        self.n += 1;
+    }
+
+    // Adds 3 dummy rows to the lookup table
+
+    pub fn add_dummy_lookup_table(&mut self) {
+        self.lookup_table.insert_row(
+            F::from(6u64),
+            F::from(7u64),
+            -F::from(20u64),
+            F::one(),
+        );
+
+        self.lookup_table.insert_row(
+            -F::from(20u64),
+            F::from(6u64),
+            F::from(7u64),
+            F::zero(),
+        );
+
+        self.lookup_table.insert_row(
+            F::from(3u64),
+            F::one(),
+            F::from(4u64),
+            F::from(9u64),
+        );
+    }
+
+
+
+    //This function is used to add a blinding factors to the witness and permutation polynomials.
+    pub fn add_blinding_factors<R>(&mut self, rng: &mut R)
+    where
+        R: CryptoRng + RngCore + ?Sized,
+    {
+        let mut rand_var_1 = self.zero_var();
+        let mut rand_var_2 = self.zero_var();
+        // Blinding wires
+        for _ in 0..2 {
+            rand_var_1 = self.add_input(F::rand(rng));
+            rand_var_2 = self.add_input(F::rand(rng));
+            let rand_var_3 = self.add_input(F::rand(rng));
+            let rand_var_4 = self.add_input(F::rand(rng));
+
+            self.w_l.push(rand_var_1);
+            self.w_r.push(rand_var_2);
+            self.w_o.push(rand_var_3);
+
+
+            // All selectors fixed to 0 so that the constraints are satisfied
+            self.q_m.push(F::zero());
+            self.q_l.push(F::zero());
+            self.q_r.push(F::zero());
+            self.q_o.push(F::zero());
+            self.q_c.push(F::zero());
+         
+            self.q_lookup.push(F::zero());
+
+
+            self.perm.add_variables_to_map(
+                rand_var_1, rand_var_2, rand_var_3, rand_var_4, self.n,
+            );
+            self.n += 1;
+        }
+
+        // Blinding Z
+        // We add 2 pairs of equal random points
+
+        self.w_l.push(rand_var_1);
+        self.w_r.push(rand_var_2);
+        self.w_o.push(self.zero_var());
+
+
+        // All selectors fixed to 0 so that the constraints are satisfied
+        self.q_m.push(F::zero());
+        self.q_l.push(F::zero());
+        self.q_r.push(F::zero());
+        self.q_o.push(F::zero());
+        self.q_c.push(F::zero());
+
+
+        self.q_lookup.push(F::zero());
+
+
+        self.perm.add_variables_to_map(
+            rand_var_1,
+            rand_var_2,
+            self.zero_var(),
+            self.zero_var(),
+            self.n,
+        );
+        self.n += 1;
+    }
+
+
 
 
 
