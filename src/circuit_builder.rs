@@ -1,5 +1,6 @@
 use ark_ec::{models::TEModelParameters, ModelParameters};
 use ark_ff::{PrimeField, ToConstraintField};
+use crate::permutation::Permutation;
 
 
 
@@ -35,11 +36,61 @@ where
     // Permutation argument.
     pub(crate) perm: Permutation,
 
+    // public inputs
+    pub(crate) public_inputs: PublicInputs<F>,
+
+
+    // zero var
+    pub(crate) zero_var: Variable,
+
+
     // Type Parameter Marker
     __: PhantomData<P>,
 }
 
-impl CircuitBuilder {
+impl<F,P> CircuitBuilder<F,P> 
+where
+    F: PrimeField,
+    P: TEModelParameters<BaseField:F>
+{
+
+    // Creates a new circuit with an expected circuit size.
+    pub fn new(circuit_size: usize) -> Self {
+        let mut builder = Self {
+            n: 0,
+            q_m: Vec::with_capacity(circuit_size),
+            q_l: Vec::with_capacity(circuit_size),
+            q_r: Vec::with_capacity(circuit_size),
+            q_o: Vec::with_capacity(circuit_size),
+            q_c: Vec::with_capacity(circuit_size),
+            q_lookup: Vec::with_capacity(circuit_size),
+            public_inputs: PublicInputs::new(),
+            w_l: Vec::with_capacity(circuit_size),
+            w_r: Vec::with_capacity(circuit_size),
+            w_o: Vec::with_capacity(circuit_size),
+            lookup_table: LookupTable::new(),
+            perm: Permutation::new(),
+            __: PhantomData::<P>,
+        };
+
+        builder
+
+  
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
      /*  The final constraint added will force the following:
     `(a * b) * q_m + a * q_l + b * q_r + q_c + PI + q_o * c = 0`.*/
     pub fn poly_gate(
@@ -123,6 +174,11 @@ impl CircuitBuilder {
     }
 
 
+    pub fn zero_var(&self) -> Variable {
+        self.zero_var
+    }
+
+
     pub fn add_input(&mut self, s: F) -> Variable {
         // Get a new Variable from the permutation
         let var = self.perm.new_variable();
@@ -149,31 +205,90 @@ impl CircuitBuilder {
     }
 
 
-    // Maps a set of [`Variable`]s (a,b,c) to a set of [`Wire`]
-   //(left, right, out) with the corresponding gate index
-    pub fn add_variables_to_map(
+    // output 1 if the input is 0 otherwise 1
+
+    pub fn is_zero_with_output(&mut self, a:Variable) -> Variable {
+        let a_value = self.variabels.get(&a).unwrap();
+        let y_value = a_value.inverse().unwrap_or_else(F::one);
+
+
+        let b_value = F::one() - *a_value * y_value;
+
+        let y = self.add_input(y_value);
+
+        let b = self.add_input(b_value);
+
+        let zero = self.zero_var();
+
+
+        // Enforce constraints. The constraint system being used here is
+        // a * y + b - 1 = 0
+        // a * b = 0
+        // where y is auxiliary and b is the boolean (a == 0).
+        let _a_times_b = self.arithmetic_gate(|gate| {
+            gate.witness(a, b, Some(zero)).mul(F::one())
+        });
+
+        let _first_constraint = self.arithmetic_gate(|gate| {
+            gate.witness(a, y, Some(zero))
+                .mul(F::one())
+                .fan_in_3(F::one(), b)
+                .constant(-F::one())
+        });
+
+        b
+    }
+
+    pub fn is_eq_with_output(&mut self, a: Variable, b: Variable) -> Variable {
+        let difference = self.arithmetic_gate(|gate| {
+            gate.witness(a, b, None).add(F::one(), -F::one())
+        });
+        self.is_zero_with_output(difference)
+    }
+
+    // Conditionally selects a [`Variable`] based on an input bit.
+    
+    // If:
+    // bit == 1 => choice_a,
+    // bit == 0 => choice_b,
+
+    pub fn conditional_select(
         &mut self,
-        a: Variable,
-        b: Variable,
-        c: Variable,
-        gate_index: usize,
-    ) {
-        let left: WireData = WireData::Left(gate_index);
-        let right: WireData = WireData::Right(gate_index);
-        let output: WireData = WireData::Output(gate_index);
+        bit: Variable,
+        choice_a: Variable,
+        choice_b: Variable,
+    ) -> Variable {
+        let zero = self.zero_var;
+        // bit * choice_a
+        let bit_times_a = self.arithmetic_gate(|gate| {
+            gate.witness(bit, choice_a, None).mul(F::one())
+        });
 
-        // Map each variable to the wire it is associated with
-        self.add_variable_to_map(a, left);
-        self.add_variable_to_map(b, right);
-        self.add_variable_to_map(c, output);
+        // 1 - bit
+        let one_min_bit = self.arithmetic_gate(|gate| {
+            gate.witness(bit, zero, None)
+                .add(-F::one(), F::zero())
+                .constant(F::one())
+        });
+
+        // (1 - bit) * b
+        let one_min_bit_choice_b = self.arithmetic_gate(|gate| {
+            gate.witness(one_min_bit, choice_b, None).mul(F::one())
+        });
+
+        // [ (1 - bit) * b ] + [ bit * a ]
+        self.arithmetic_gate(|gate| {
+            gate.witness(one_min_bit_choice_b, bit_times_a, None)
+                .add(F::one(), F::one())
+        })
     }
 
-    pub fn add_variable_to_map(&mut self, var: Variable, wire_data: WireData) {
-        assert!(self.valid_variables(&[var]));
 
-        let vec_wire_data = self.variable_map.get_mut(&var).unwrap();
-        vec_wire_data.push(wire_data);
-    }
+
+
+
+
+ 
 
 
 
