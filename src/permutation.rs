@@ -200,3 +200,5 @@ impl Permutation {
             fourth_sigma_poly,
         )
     }
+
+}

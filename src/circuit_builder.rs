@@ -433,6 +433,141 @@ where
 }
 
 
+impl<F, P> CircuitBuilder<F, P>
+where
+    F: PrimeField,
+    P: TEModelParameters<BaseField = F>,
+{
+    /// Function used to generate any arithmetic gate with fan-in-2 or fan-in-3.
+    pub fn arithmetic_gate<Fn>(&mut self, func: Fn) -> Variable
+    where
+        Fn: FnOnce(&mut ArithmeticGate<F>) -> &mut ArithmeticGate<F>,
+    {
+        let gate = {
+            let mut gate = ArithmeticGate::<F>::new();
+            func(&mut gate).build()
+        };
+
+        if gate.witness.is_none() {
+            panic!("Missing left and right wire witnesses")
+        }
+
+        let (q4, w4) = gate.fan_in_3.unwrap_or((F::zero(), self.zero_var));
+        self.w_4.push(w4);
+        self.q_4.push(q4);
+
+        let gate_witness = gate.witness.unwrap();
+        self.w_l.push(gate_witness.0);
+        self.w_r.push(gate_witness.1);
+        self.q_l.push(gate.add_selectors.0);
+        self.q_r.push(gate.add_selectors.1);
+
+        // Add selector vectors
+        self.q_m.push(gate.mul_selector);
+        self.q_o.push(gate.out_selector);
+        self.q_c.push(gate.const_selector);
+
+
+        self.q_lookup.push(F::zero());
+
+        if let Some(pi) = gate.pi {
+            self.add_pi(self.n, &pi).unwrap_or_else(|_| {
+                panic!("Could not insert PI {:?} at {}", pi, self.n)
+            });
+        };
+
+        let c = gate_witness.2.unwrap_or_else(|| {
+            self.add_input(
+                ((gate.mul_selector
+                    * (self.variables[&gate_witness.0]
+                        * self.variables[&gate_witness.1]))
+                    + gate.add_selectors.0 * self.variables[&gate_witness.0]
+                    + gate.add_selectors.1 * self.variables[&gate_witness.1]
+                    + gate.const_selector
+                    + q4 * self.variables[&w4]
+                    + gate.pi.unwrap_or_default())
+                    * (-gate.out_selector),
+            )
+        });
+        self.w_o.push(c);
+        self.perm.add_variables_to_map(
+            gate_witness.0,
+            gate_witness.1,
+            c,
+            w4,
+            self.n,
+        );
+        self.n += 1;
+
+        c
+    }
+
+}
+
+// implement lookup gate
+impl<F, P> CircuitBuilder<F, P>
+where
+    F: PrimeField,
+    P: TEModelParameters<BaseField = F>,
+{
+    /// Adds a plookup gate to the circuit with its corresponding
+    /// constraints.
+    pub fn lookup_gate(
+        &mut self,
+        a: Variable,
+        b: Variable,
+        c: Variable,
+        d: Option<Variable>,
+        pi: Option<F>,
+    ) -> Variable {
+        // Check if advice wire has a value
+        let d = match d {
+            Some(var) => var,
+            None => self.zero_var,
+        };
+
+        self.w_l.push(a);
+        self.w_r.push(b);
+        self.w_o.push(c);
+        self.w_4.push(d);
+
+        // Add selector vectors
+        self.q_m.push(F::zero());
+        self.q_l.push(F::zero());
+        self.q_r.push(F::zero());
+        self.q_o.push(F::zero());
+        self.q_c.push(F::zero());
+        self.q_4.push(F::zero());
+        self.q_arith.push(F::zero());
+        self.q_range.push(F::zero());
+        self.q_logic.push(F::zero());
+        self.q_fixed_group_add.push(F::zero());
+        self.q_variable_group_add.push(F::zero());
+
+        // add high degree selectors
+        self.q_hl.push(F::zero());
+        self.q_hr.push(F::zero());
+        self.q_h4.push(F::zero());
+
+        // For a lookup gate, only one selector poly is
+        // turned on as the output is inputted directly
+        self.q_lookup.push(F::one());
+
+        if let Some(pi) = pi {
+            self.add_pi(self.n, &pi).unwrap_or_else(|_| {
+                panic!("Could not insert PI {:?} at {}", pi, self.n)
+            });
+        };
+
+        self.perm.add_variables_to_map(a, b, c, d, self.n);
+
+        self.n += 1;
+
+        c
+    }
+}
+
+
 
 
 
