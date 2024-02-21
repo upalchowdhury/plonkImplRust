@@ -1,6 +1,7 @@
 use ark_ec::{models::TEModelParameters, ModelParameters};
 use ark_ff::{PrimeField, ToConstraintField};
 use crate::permutation::Permutation;
+use rand_core::{CryptoRng, RngCore};
 
 
 
@@ -427,20 +428,6 @@ where
         );
         self.n += 1;
     }
-
-
-
-
-
-
- 
-
-
-
-
-
-
-
 
 
 }
